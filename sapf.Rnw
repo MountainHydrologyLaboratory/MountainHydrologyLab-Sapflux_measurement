@@ -1,0 +1,75 @@
+\documentclass{article}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+
+\title{SAP Flux calculation}
+\author{Rodrigo Fernandez}
+
+\maketitle
+
+\section{Prepare workspace}
+\\subsection{Clear workspace and read variables}
+<<>>=
+
+#setwd("/Users/rodrigofernandez/Documents/WVU/sapflux/") #set working directory
+rm(list=ls())     #clear workspace
+t2s<-read.csv("sapex.csv",header=FALSE) #read T2 series. NEEDS TO BE A DIFFERENCES BETWEEN UpSTREAM AND DOWNSTREAM.
+n<-nrow(t2s) #read the sample size
+
+@
+
+\\subsection{Declare variables}
+<<>>=
+
+d<-2.5 #determine the spacing between the heater and the middle of the two sensors
+vh<-matrix(data=NA,nrow=1,ncol=n) #initialize vector to store heat pulse velocity (vh)
+vc<-matrix(data=NA,nrow=1,ncol=n) #initialize vector to store corrected vh for wounding effects (vc)
+w<-1 #wound width (mm)
+temp<-1 #temperature NEED TO BE CHANGED TO VECTOR FROM INPUT FILE
+vwd<-1 #volume fraction of wood
+vwt<-1 #volume fraction of water
+
+@
+
+\section{Calculate heat pulse velocity}
+<<>>=
+
+vh<-d/t2s #Equation 1 from McJannet etal 2004
+
+@
+
+\section{Correct heat pulse for wounding effect}
+<<>>=
+
+for (i in 1:n){ #cycle to calculate coefficients for wounding correction
+  
+  if (vh[i]>-3){ #conditional for vh in relation to 3cms/h (>)
+    
+    b1<--0.1175*w^2+1.46*w-1.6432 #Equation 3 McJannet 2004
+    b2<-0.721*w^2-0.644*w+2.2024 #Equation 4 McJannet 2004
+    b3<-0.0239*w^2-0.0319*w+0.0259 #Equation 5 McJannet 2004
+    
+  } else { #conditional for vh in relation to 3cms/h (<)
+    
+    b1<-0.0259*w^2-0.0397*w-0.4409 #Equation 6 McJannet 2004
+    b2<-0.081*w^2-0.1298*w+1.3316 #Equation 7 McJannet 2004
+    b3<-0.051*w2-0.0003*w+0.0166 #Equation 8 McJannet 2004
+    
+  } #end of conditional
+  
+  vc[i]<-b1+b2*vh[i]+b3*(vh[i])^2  #Equation 2 McJannet 2004
+  
+} #end of cycle for wounding coefficients
+
+@
+\section{Converting heat flux to sap velocity}
+<<>>=
+
+########## NEEDS TO BE REVISED FOR A TEMPERATURE CYCLE ACCORDING TO TEMPERATURE INPUT
+k<-0.4+0.00214*temp-0.000006*temp^2 #Equation 10 McJannet 2004
+vl<-vc*(k*vwd+vwt) #Equation 9 McJannet 2004
+
+
+@
+\end{document}
