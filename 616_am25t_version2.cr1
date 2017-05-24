@@ -1,0 +1,82 @@
+'CR1000 Series Datalogger
+' CR 1000x code to conduct sapflux measurements using two thermisters surrounding a heat
+' probe located between thermistors
+' four Soil moisture content measuring is also included in the code. 
+
+' Code date:  05/23/2017
+' Code author:  Code originally from Koong Yi but this version has been
+' modified by Nicolas Zegre and Luis Andres Guillen
+' This code should be used to TEST field-deployed sensors using the multiplexer and Soil moisture content probes.
+
+'Declare Public Variables
+' Tref is reference temp (panel temp); Batt_volt is battery voltage; Mux1(12) is thermocouple
+' temperatures from each differential port (H & L)
+' VW is volumetriv water content. PA_uS is the conductivity in the soil. 
+Public Tref, Batt_Volt, StorePostPulse As Boolean
+Public Mux1_(12) ' this call multiplexer to public
+Public PRE_POST As String * 5 
+Public VW_1
+Public PA_uS_1
+Public VW_2
+Public PA_uS_2
+Public VW_3
+Public PA_uS_3
+Public VW_4
+Public PA_uS_4
+
+'Define Data Tables
+DataTable (HPD_MUX1,1,-1)
+	Sample (1,PRE_POST,String)
+	Sample (1,Batt_Volt,FP2)
+	Sample (1,Tref,FP2)
+	Sample (12,Mux1_(),FP2) ' this calls multiplexer to aquire measurement from 24 channels (or 12 differential channels)
+	Sample(1,PA_uS_1,FP2) 'this calls the CS616 and measures the period average. 
+	
+	Average(1,VW_1,FP2,False) ' this calls the CS616 volumetric water content.
+	Average(1,VW_2,FP2,False)
+	Average(1,VW_3,FP2,False)
+	Average(1,VW_4,FP2,False)
+EndTable
+
+'Main Program
+BeginProg
+	Scan (2,Sec,200,0)
+	  SW12(0)
+	  Battery (Batt_Volt)
+		
+		AM25T (Mux1_(),12,mV2_5,1,1,TypeT,Tref,2,3,Vx1,True,5000,_60Hz,1.0,0) ' this calls the AM25T multiplexer
+		CS616(PA_uS_1,1,3,4,1,1,0) 	'CS616 Water Content Reflectometer measurements 'VW_1' and 'PA_uS_1' Green to SE 3 and Orange to C4
+		VW_1=-0.0663+(-0.0063*PA_uS_1)+(0.0007*PA_uS_1^2)
+		CS616(PA_uS_2,1,4,5,1,1,0) 	'CS616 Water Content Reflectometer measurements 'VW_2' and 'PA_uS_2' Green to SE 4 and Orange to C5
+		VW_2=-0.0663+(-0.0063*PA_uS_2)+(0.0007*PA_uS_2^2)
+		CS616(PA_uS_3,1,5,6,1,1,0) 	'CS616 Water Content Reflectometer measurements 'VW_3' and 'PA_uS_3' Green to SE 5 and Orange to C6
+		VW_3=-0.0663+(-0.0063*PA_uS_3)+(0.0007*PA_uS_3^2)
+		CS616(PA_uS_4,1,6,7,1,1,0)  'CS616 Water Content Reflectometer measurements 'VW_4' and 'PA_uS_4' Green to SE 6 and Orange to C7
+		VW_4=-0.0663+(-0.0063*PA_uS_4)+(0.0007*PA_uS_4^2)
+
+		
+If TimeIntoInterval (0,1800,Sec) Then ' logs every 30 mins )nz)
+		  PRE_POST = "PRE"
+		  CallTable HPD_MUX1 ' calls multiplexer instead of datalogger
+		  SW12(1) ' activates heater
+		  Delay(0,2,sec) 'generates heat for 2 seconds
+		  SW12(0) ' deactivates heater
+		  
+		EndIf
+
+If TimeIntoInterval (6,1800,Sec) Then  'logs every 30 mins (NZ)
+		  PRE_POST="POST"
+		  StorePostPulse = True
+		EndIf
+
+If TimeIntoInterval (200,1800,Sec) Then  'logs every 30 mins (NZ)
+		  StorePostPulse = False
+		EndIf
+  
+If StorePostPulse Then
+		  CallTable HPD_MUX1 ' names table from data collected using multiplexer
+		 EndIf
+		
+	NextScan
+EndProg
+
