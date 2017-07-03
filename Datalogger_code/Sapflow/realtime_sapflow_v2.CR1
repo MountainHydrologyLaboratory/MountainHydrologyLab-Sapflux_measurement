@@ -1,0 +1,143 @@
+'CR1000 Series Datalogger
+' CR 1000x code to conduct sapflux measurements using two thermisters surrounding a heat
+' probe located between thermistors
+
+' Code date:  06/30/2017
+' Code author:  Code originally from Koong Yi but this version has been
+' modified by Nicolas Zegre and Luis Andres Guillen
+' Purpose code to show (and record) real time Sapflow in field-deployed sensors.
+
+'Declare Public Variables
+
+Public Tref, Batt_Volt, StorePostPulse, Condition1, Condition2 As Boolean' Tref is reference temp (panel temp); Batt_volt is battery voltage;
+Public PRE_POST As String * 5 'variable to use for condition
+Public Temp_C(4)'  Temp_C(4) Is thermocouple temperatures from two differential port (H & L)
+Public diffpre1 'temp diff pre heat 1
+Public diffpre2 'temp diff pre heat 2
+Public diff1 'temp diff for nest 1
+Public diff2 'temp diff for nest 2
+Public time1 'time it takes nest 1 to reach the pre temp
+Public time2 'time it takes nest 2 to reach the pre temp
+Public vh1 ' heat pulse velocity nest 1
+Public vh2 ' heat pulse velocity nest 2
+Public vc1 ' corrected velocity nest 1
+Public vc2 ' corrected velocity nest 2
+Public vl1 ' sap velocity nest 1
+Public vl2 ' sap velocity nest 2
+Public sapflow1 ' sap flow nest 1
+Public sapflow2 ' sap flow nest 2
+Public b1 'coeficient to correct wound effect
+Public b2 'coeficient to correct wound effect
+Public b3 'coeficient to correct wound effect
+Public k 'coeficient for temperature compensation 
+Public SAPWOOD_BASAL_AREA ' I just put this here temporarily since we should put the value in the code later. 
+
+
+'Define Data Tables
+DataTable (TCDiff,1,-1) ' this names the table with the data from the thermocouples. 
+	Sample (1,PRE_POST,String)
+	Sample (1,Batt_Volt,FP2)
+	Sample (1,Tref,FP2)
+	Sample (1,Temp_C(1),FP2) ' this calls datalogger to aquire measurement from differential channel 1)
+  Sample (1,Temp_C(2),FP2) ' Differential channel 1
+  Sample (1,Temp_C(3),FP2) ' Differential channel 2
+  Sample (1,Temp_C(4),FP2) ' Differential channel 2
+  Sample (1,time1,FP2) 'timer 1
+  Sample (1,time2, FP2) 'timer 2
+EndTable
+
+DataTable (Sapflow,1,-1) 'This calls the values to the table that can be displayed on the screen. 
+  Sample (1,sapflow1,FP2)
+  Sample (1,sapflow2,FP2)
+EndTable
+
+'Main Program
+BeginProg
+	Scan (2,Sec,200,0)
+	  SW12(0)
+	  Battery (Batt_Volt)
+		TCDiff(Temp_C(),2,mV2_5C,1,TypeT,Tref,True,0,_60Hz,1,0) 'differential channel 1 and 2	
+	  
+If TimeIntoInterval (0,1800,Sec) Then ' logs every 30 mins )nz)
+		  PRE_POST = "PRE" 'shows this it pre heat.
+		  CallTable TCDiff ' calls datalogger
+		  SW12(1) ' activates heater
+      Timer(1,sec,2) 'starts timer1 every 30 minutes
+		  Timer(2,sec,2) 'starts timer2 every 30 minutes
+      diffpre1=Temp_C(1)-Temp_C(2)
+		  diffpre2=Temp_C(3)-Temp_C(4)
+      Condition1 = True
+      Condition2 = True		  
+      Delay(0,2,sec) 'generates heat for 2 seconds
+		  SW12(0) ' deactivates heater	
+		  
+EndIf
+
+
+If TimeIntoInterval (6,1800,Sec) Then  'logs every 30 mins (NZ) to store be able to store data.
+		  PRE_POST="POST" 
+		  StorePostPulse = True 
+EndIf
+
+If TimeIntoInterval (300,1800,Sec) Then  'logs every 30 mins for 5 mins in order to calculate the differences. 
+   StorePostPulse = False        
+EndIf
+
+If StorePostPulse Then ' open StorePostPulse conditional
+	diff1=Temp_C(1)-Temp_C(2)
+	diff2=Temp_C(3)-Temp_C(4)
+  If Condition1 Then 'condition counter to measure one sapflow value per cycle.
+    If diff1<=diffpre1 Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time1= Timer(1,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired. 
+        vh1=2.5/time1*360 'this calculates the heat velocity in cm/h
+        
+          If vh1<=3 Then 'open wounding effect contition
+            b1=-0.0604 'from the Equation 3 McJannet 2004 using 1,2 mm as the wounding diameter. 
+            b2=2.46784 ' Equation 4 McJannet 2004 using 1,2 mm as the wounding diameter
+            b3=0.022036 ' Equation 5 McJannet 2004 using 1,2 mm as the wounding diameter
+           Else ' conditional For vh in relation To 3cms/h (<) this condition only true whtn time=>300sec
+            b1=-0.451244  'Equation 6 McJannet 2004 using 1,2 mm as the wounding diameter
+            b2= 1.29248  'Equation 7 McJannet 2004 using 1,2 mm as the wounding diameter
+            b3=0.08968   'Equation 8 McJannet 2004 using 1,2 mm as the wounding diameter    
+          EndIf 'close wounding effect condition
+           
+        vc1=b1+b2*vh1+b3*vh1^2 'Calculate the wounding effect. 
+        k=0.4+0.00214*Temp_C(1)-0.000006*Temp_C(1)^2 'calculates the heat compensation of the wood. 
+        vl1= vc1*(k*0.5+0.3)'Calculates the heat flow velocity by taking into account the volume fraction of wood (0.5) and water (0.3)
+        sapflow1=vl1*SAPWOOD_BASAL_AREA ' here we need to find out the sapwood basal area, can be done based on the DBH and Wullschleger et al. 2001
+        Condition1 = False
+        CallTable Sapflow 
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+  
+  If Condition2 Then 
+    If diff2<=diffpre2 Then 'condition that compares the difference before the heat and after the heat for nest 2
+        time2= Timer(2,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired. 
+        vh2=2.5/time2*360 'this calculates the heat velocity in cm/h
+        
+          If vh2<=3 Then 'open wounding effect contition
+            b1=-0.0604 'from the Equation 3 McJannet 2004 using 1,2 mm as the wounding diameter. 
+            b2=2.46784 ' Equation 4 McJannet 2004 using 1,2 mm as the wounding diameter
+            b3=0.022036 ' Equation 5 McJannet 2004 using 1,2 mm as the wounding diameter
+           Else ' conditional For vh in relation To 3cms/h (<) this condition only true whtn time=>300sec
+            b1=-0.451244  'Equation 6 McJannet 2004 using 1,2 mm as the wounding diameter
+            b2= 1.29248  'Equation 7 McJannet 2004 using 1,2 mm as the wounding diameter
+            b3=0.08968   'Equation 8 McJannet 2004 using 1,2 mm as the wounding diameter    
+          EndIf 'close wounding effect condition
+           
+        vc2=b1+b2*vh2+b3*vh2^2 'Calculate the wounding effect. 
+        k=0.4+0.00214*Temp_C(3)-0.000006*Temp_C(3)^2 'calculates the heat compensation of the wood. 
+        vl2= vc2*(k*0.5+0.3)'Calculates the heat flow velocity by taking into account the volume fraction of wood (0.5) and water (0.3)
+        sapflow2 =vl2*SAPWOOD_BASAL_AREA ' here we need to find out the sapwood basal area, can be done based on the DBH and Wullschleger et al. 2001
+        Condition2 = False
+        CallTable Sapflow
+      EndIf 'closes conditional of the nest 2
+   EndIf 'Closes condition2
+      
+ CallTable TCDiff 'Calls the table to record the values 
+ 
+EndIf 'close storePostPulse conditional
+           
+   	NextScan
+EndProg
+
