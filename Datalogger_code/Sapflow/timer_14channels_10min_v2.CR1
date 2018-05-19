@@ -1,0 +1,181 @@
+'CR1000 Series Datalogger
+' CR 1000x code to conduct sapflux measurements using two thermisters surrounding a heat
+' probe located between thermistors
+
+' Code date:  2018/05/17
+' Code author:  Code originally from Koong Yi but this version has been
+' modified by Nicolas Zegre and Luis Andres Guillen
+' This code should be used to TEST field-deployed sensors using the multiplexer
+
+'Declare Public Variables
+' Tref is reference temp (panel temp); Batt_volt is battery voltage; Mux1(24) is thermocouple
+' temperatures from each differential port (H & L)
+Public Tref, Batt_Volt, StorePostPulse, con1,con2,con3,con4,con5,con6,con7,Done As Boolean
+Public Mux1_(14) ' this call multiplexer to public
+Public PRE_POST As String * 5 
+Public T1_pre
+Public T2_pre
+Public T3_pre
+Public T4_pre
+Public T5_pre
+Public T6_pre
+Public T7_pre
+Public T1
+Public T2
+Public T3
+Public T4
+Public T5
+Public T6
+Public T7
+Public time1 'time it takes nest 1 to reach the pre temp
+Public time2 'time it takes nest 2 to reach the pre temp
+Public time3
+Public time4
+Public time5
+Public time6
+Public time7
+
+'Define Data Tables
+DataTable (HPD_MUX1,1,-1)
+	Sample (1,PRE_POST,String)
+	Sample (1,Batt_Volt,FP2)
+	Sample (1,Tref,FP2)
+	Sample (1,time1,FP2)'The following variables are the temperature differences between the two probes at each time step (every 2 seconds). 
+	Sample (1,time2,FP2)
+	Sample (1,time3,FP2)
+	Sample (1,time4,FP2)
+	Sample (1,time5,FP2)
+	Sample (1,time6,FP2) 
+	Sample (1,time7,FP2)
+EndTable 
+
+'Main Program
+BeginProg
+	Scan (1,Sec,200,0)
+	  SW12(0)
+	  Battery (Batt_Volt)
+		
+		AM25T (Mux1_(),14,mV2_5,1,1,TypeT,Tref,2,3,Vx1,True,5000,_60Hz,1.0,0) ' this calls the AM25T multiplexer
+		
+If TimeIntoInterval (0,1800,Sec) Then ' logs every 30 mins )nz)
+		  PRE_POST = "PRE"
+		  CallTable HPD_MUX1 ' calls multiplexer instead of datalogger
+		   'starts timer2 every 30 minutes
+      SW12(1) ' activates heater
+		  Timer(1,sec,2) 'starts timer1 every 30 minutes
+		  Timer(2,sec,2)
+		  Timer(3,sec,2) 'starts timer1 every 30 minutes
+		  Timer(4,sec,2)
+		  Timer(5,sec,2) 'starts timer1 every 30 minutes
+		  Timer(6,sec,2)
+		  Timer(7,sec,2) 'starts timer1 every 30 minutes
+      T1_pre=Mux1_(2) - (Mux1_(1))
+	    T2_pre=Mux1_(4)- Mux1_(3)
+	    T3_pre=Mux1_(6)- Mux1_(5)
+	    T4_pre=Mux1_(8)- Mux1_(7)
+		  T5_pre=Mux1_(10)- Mux1_(9)
+		  T6_pre=Mux1_(12)- Mux1_(11)
+		  T7_pre=Mux1_(14)-Mux1_(13)
+			con1=True
+		  con2=True
+		  con3=True
+		  con4=True
+		  con5=True
+		  con6=True
+		  con7=True
+		  Delay(0,2,sec) 'generates heat for 2 seconds
+		  SW12(0) ' deactivates heater
+		EndIf
+
+If TimeIntoInterval (10,1800,Sec) Then  'logs every 30 mins (NZ)
+		  PRE_POST="POST"
+		  StorePostPulse = True
+		EndIf
+
+If TimeIntoInterval (600,1800,Sec) Then  'logs every 30 mins (NZ)
+		  StorePostPulse = False
+		  Done = True
+		EndIf
+If TimeIntoInterval (601,1800,Sec) Then  'logs every 30 mins (NZ)
+		  Done = False
+		EndIf		
+  
+If StorePostPulse Then
+      T1=Mux1_(2) - (Mux1_(1))
+	    T2=Mux1_(4)- Mux1_(3)
+	    T3=Mux1_(6)- Mux1_(5)
+	    T4=Mux1_(8)- Mux1_(7)
+		  T5=Mux1_(10)- Mux1_(9)
+		  T6=Mux1_(12)- Mux1_(11)
+		  T7=Mux1_(14)-Mux1_(13)
+		If con1 Then 'condition counter to measure one sapflow value per cycle.  
+      If T1<=T1_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time1= Timer(1,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con1 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con2 Then 'condition counter to measure one sapflow value per cycle.  
+      If T2<=T2_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time2= Timer(2,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con2 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con2 Then 'condition counter to measure one sapflow value per cycle.  
+      If T2<=T2_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time2= Timer(2,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con2 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con3 Then 'condition counter to measure one sapflow value per cycle.  
+      If T3<=T3_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time3= Timer(3,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con3 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con4 Then 'condition counter to measure one sapflow value per cycle.  
+      If T4<=T4_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time4= Timer(4,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con4 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con5 Then 'condition counter to measure one sapflow value per cycle.  
+      If T5<=T5_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time5= Timer(5,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con5 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con6 Then 'condition counter to measure one sapflow value per cycle.  
+      If T6<=T6_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time6= Timer(6,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con6 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+
+If con7 Then 'condition counter to measure one sapflow value per cycle.  
+      If T7<=T7_pre Then 'condition that compares the difference before the heat and after the heat for nest 1
+        time7= Timer(7,sec,4) 'stops the timer and reads the time that has passes since the heat probe fired.
+        con7 = False
+        'CallTable HPD_MUX1
+     EndIf ''closes conditional of the nest 1
+  EndIf ' Closes Condition1
+EndIf
+
+If Done Then
+  CallTable HPD_MUX1
+EndIf		
+	NextScan
+EndProg
+

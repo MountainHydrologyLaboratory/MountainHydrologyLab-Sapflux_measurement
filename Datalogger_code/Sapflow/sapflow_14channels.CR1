@@ -1,0 +1,56 @@
+'CR1000 Series Datalogger
+' CR 1000x code to conduct sapflux measurements using two thermisters surrounding a heat
+' probe located between thermistors
+
+' Code date:  2018/05/17
+' Code author:  Code originally from Koong Yi but this version has been
+' modified by Nicolas Zegre and Luis Andres Guillen
+' This code should be used to TEST field-deployed sensors using the multiplexer
+
+'Declare Public Variables
+' Tref is reference temp (panel temp); Batt_volt is battery voltage; Mux1(24) is thermocouple
+' temperatures from each differential port (H & L)
+Public Tref, Batt_Volt, StorePostPulse As Boolean
+Public Mux1_(14) ' this call multiplexer to public
+Public PRE_POST As String * 5 
+
+'Define Data Tables
+DataTable (HPD_MUX1,1,-1)
+	Sample (1,PRE_POST,String)
+	Sample (1,Batt_Volt,FP2)
+	Sample (1,Tref,FP2)
+	Sample (14,Mux1_(),FP2) ' this calls multiplexer to aquire measurement from 24 channels (or 12 differential channels)
+EndTable
+
+'Main Program
+BeginProg
+	Scan (2,Sec,200,0)
+	  SW12(0)
+	  Battery (Batt_Volt)
+		
+		AM25T (Mux1_(),14,mV2_5,1,1,TypeT,Tref,2,3,Vx1,True,5000,_60Hz,1.0,0) ' this calls the AM25T multiplexer
+		
+If TimeIntoInterval (0,1800,Sec) Then ' logs every 30 mins )nz)
+		  PRE_POST = "PRE"
+		  CallTable HPD_MUX1 ' calls multiplexer instead of datalogger
+		  SW12(1) ' activates heater
+		  Delay(0,2,sec) 'generates heat for 2 seconds
+		  SW12(0) ' deactivates heater
+		EndIf
+
+If TimeIntoInterval (6,1800,Sec) Then  'logs every 30 mins (NZ)
+		  PRE_POST="POST"
+		  StorePostPulse = True
+		EndIf
+
+If TimeIntoInterval (300,1800,Sec) Then  'logs every 30 mins (NZ)
+		  StorePostPulse = False
+		EndIf
+  
+If StorePostPulse Then
+		  CallTable HPD_MUX1 ' names table from data collected using multiplexer
+		 EndIf
+		
+	NextScan
+EndProg
+

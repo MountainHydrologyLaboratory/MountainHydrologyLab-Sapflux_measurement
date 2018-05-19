@@ -1,0 +1,95 @@
+Public Tref, Batt_Volt, StorePostPulse As Boolean, SoilStore As Boolean
+Public Mux1_(14)
+Public PRE_POST As String * 5
+Public VW_1
+Public PA_uS_1
+Public VW_2
+Public PA_uS_2
+Public VW_3
+Public PA_uS_3
+Public VW_4
+Public PA_uS_4
+Public AirTC
+Public RH
+Public T1
+Public T2
+Public T3
+Public T4
+Public T5
+Public T6
+Public ST1
+Public ST2
+DataTable (HPD_MUX1,1,-1)
+Sample (1,PRE_POST,String)
+Sample (1,Batt_Volt,FP2)
+Sample (1,Tref,FP2)
+Sample (1,T1,FP2)
+Sample (1,T2,FP2)
+Sample (1,T3,FP2)
+Sample (1,T4,FP2)
+Sample (1,T5,FP2)
+Sample (1,T6,FP2)
+EndTable
+DataTable (Soil_Moisture,1,1440)
+Average(1,VW_1,FP2,False)
+Average(1,VW_2,FP2,False)
+Average(1,VW_3,FP2,False)
+Average(1,VW_4,FP2,False)
+Average(1,ST1,FP2,False)
+Average(1,ST2,FP2,False)
+EndTable
+DataTable(Air_T_RH,True,1440)
+Sample(1,AirTC,FP2)
+Sample(1,RH,FP2)
+EndTable
+BeginProg
+Scan (2,Sec,200,0)
+SW12(0)
+Battery (Batt_Volt)
+AM25T (Mux1_(),14,mV2_5,1,1,TypeT,Tref,2,3,Vx1,True,5000,_60Hz,1.0,0)
+T1=Mux1_(1) - (Mux1_(2))
+T2=Mux1_(3)- Mux1_(4)
+T3=Mux1_(5)- Mux1_(6)
+T4=Mux1_(7)- Mux1_(8)
+T5=Mux1_(9)- Mux1_(10)
+T6=Mux1_(11)- Mux1_(12)
+If TimeIntoInterval (0,1800,Sec) Then
+PRE_POST = "PRE"
+CallTable HPD_MUX1
+SW12(1)
+Delay(0,2,sec)
+SW12(0)
+CS616(PA_uS_1,1,3,4,1,1,0)
+VW_1=-0.0663+(-0.0063*PA_uS_1)+(0.0007*PA_uS_1^2)
+CS616(PA_uS_2,1,4,5,1,1,0)
+VW_2=-0.0663+(-0.0063*PA_uS_2)+(0.0007*PA_uS_2^2)
+CS616(PA_uS_3,1,5,6,1,1,0)
+VW_3=-0.0663+(-0.0063*PA_uS_3)+(0.0007*PA_uS_3^2)
+CS616(PA_uS_4,1,6,7,1,1,0)
+VW_4=-0.0663+(-0.0063*PA_uS_4)+(0.0007*PA_uS_4^2)
+ST1=Mux1_(13)
+ST2=Mux1_(14)
+VoltSe(AirTC,1,mV2500,7,0,0,_50Hz,0.1,-40)
+VoltSe(RH,1,mV2500,8,0,0,_50Hz,0.1,0)
+If (RH>100) AND (RH<108) Then RH=100
+SoilStore = True
+EndIf
+If TimeIntoInterval(4,1800,Sec)Then
+SoilStore = False
+EndIf
+If TimeIntoInterval (6,1800,Sec) Then
+PRE_POST="POST"
+StorePostPulse = True
+EndIf
+If TimeIntoInterval (300,1800,Sec) Then
+StorePostPulse = False
+EndIf
+If StorePostPulse Then
+CallTable HPD_MUX1
+EndIf
+If SoilStore Then
+CallTable Soil_Moisture
+CallTable Air_T_RH
+EndIf
+NextScan
+EndProg
